@@ -1,0 +1,32 @@
+name: Lua module tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - 'luascripts/pappaliiga/**'
+      - 'tests/**'
+      - '.github/workflows/lua-tests.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Lua runtimes
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.1 lua5.4
+
+      - name: Test PappaBalance
+        run: lua5.1 tests/pappabalance_test.lua
+
+      - name: Test PappaReady
+        run: lua5.4 tests/pappaready_test.lua

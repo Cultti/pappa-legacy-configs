@@ -4,6 +4,13 @@ ETLegacy server-side Lua stats module. Collects per-round weapon stats, objectiv
 movement/stance metrics, and a rich in-round event timeline (`gamelog`). Submits a single JSON
 payload to a configurable API endpoint at the end of every round.
 
+## Pappaliiga modules
+
+The cup server's `lua_modules` configs load custom modules from
+`luascripts/pappaliiga/`. Keep those modules in this repository so the Oksii
+image deploys them together with the rest of the `luascripts` tree. Their
+regression tests are in the repository's `tests/` directory.
+
 ---
 
 ## Output JSON structure
