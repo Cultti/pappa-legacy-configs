@@ -3,7 +3,7 @@ local now, payload, writes = 1000, nil, 0
 local vars={sv_maxclients='6',gamestate='2',sv_etltv_password='relay-secret'}
 local clients={{connected=2},{connected=2},{connected=2},{connected=2},{connected=2,flags=8},{connected=2,protocol='284',password='relay-secret'}}
 package.preload.dkjson=function()return{encode=function(value)payload=value;return 'json' end}end
-os.getenv=function(name)return name=='HIGHLIGHT_AUTOMATION_ENABLED' and 'true' or '/presence.json' end
+os.getenv=function(name)if name=='HIGHLIGHT_AUTOMATION_ENABLED' then return 'true' end; if name=='HIGHLIGHT_PRESENCE_FILE' then return '/presence.json' end; return nil end
 os.time=function()return now end
 io.open=function()return{write=function(self)writes=writes+1;return self end,close=function()return true end}end
 os.rename=function()return true end
