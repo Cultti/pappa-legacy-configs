@@ -30,3 +30,7 @@ jobs:
 
       - name: Test PappaReady
         run: lua5.4 tests/pappaready_test.lua
+      - name: Test highlight presence and match recording
+        run: |
+          lua5.4 tests/pappahighlights_test.lua
+          lua5.4 tests/pappahighlights_recording_test.lua
