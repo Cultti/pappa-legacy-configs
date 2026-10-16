@@ -95,6 +95,14 @@ test("self move preserves chat and only sends the caller's current team", functi
     assert(files["/tmp/voice-test.body"] == nil)
 end)
 
+test("unregistered self move delivers registration instructions only to the caller", function()
+    chat(1, "!voice")
+    local prompt = "Sinua ei voitu siirtää Discord-kanavalle Blue room, koska GUID:iasi ei ole yhdistetty Discord-tiliisi. Kirjaudu Discordilla osoitteessa https://et.aukko.net ja kopioi sivun /register-komento pelikonsoliin."
+    complete({ { guid = guidB, team = "allies", moved = false, message = prompt } })
+    assert(contains(prompt, 1))
+    assert(not contains("/register", 0) and not contains("/register", -1))
+end)
+
 test("voice commands are denied during play, countdown, intermission and round two", function()
     for _, state in ipairs({ "0", "1", "3" }) do
         cvars.gamestate = state
@@ -127,7 +135,7 @@ test("referee allutvittuun includes both teams and publicly names the referee fr
     assert(contains("Alice^7 käytti komentoa !allutvittuun", -1))
     complete({
         { guid = guidA, team = "axis", moved = true, message = "Moved to Red room." },
-        { guid = guidB, team = "allies", moved = false, message = "Not registered. Join Blue room. Register at https://et.aukko.net" }
+        { guid = guidB, team = "allies", moved = false, message = "Sinua ei voitu siirtää Discord-kanavalle Blue room, koska GUID:iasi ei ole yhdistetty Discord-tiliisi. Kirjaudu Discordilla osoitteessa https://et.aukko.net ja kopioi sivun /register-komento pelikonsoliin." }
     })
     assert(contains("Moved to Red room.", 0))
     local chatMessages = {}
@@ -135,6 +143,9 @@ test("referee allutvittuun includes both teams and publicly names the referee fr
         table.insert(chatMessages, string.format("%d:%s", item.slot, item.text))
     end
     assert(contains("https://et.aukko.net", 1), table.concat(chatMessages, "\n"))
+    assert(contains("Sinua ei voitu siirtää", 1))
+    assert(contains("/register-komento pelikonsoliin", 1))
+    assert(not contains("/register", 0) and not contains("/register", -1))
     assert(contains("1/2 siirtoa vahvistettu", 0))
 end)
 

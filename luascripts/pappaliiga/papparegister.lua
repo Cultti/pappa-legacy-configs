@@ -24,6 +24,9 @@ local REGISTER_API_URL = "https://et.aukko.net/api/players/register"
 
 -- Read the backend token from a separate file at startup.
 local AUTH_TOKEN = ""
+local reminderQueue, reminderRequests, connections = {}, {}, {}
+local reminderPollAt = 0
+local STATUS_API_URL = "https://et.aukko.net/api/players/registration-status"
 
 local json_ok, json = pcall(require, "dkjson")
 if not json_ok then
@@ -208,6 +211,8 @@ local function handle_register_command(clientNum, registrationToken)
 end
 
 function et_InitGame(levelTime, randomSeed, restart)
+    reminderQueue, reminderRequests, connections = {}, {}, {}
+    reminderPollAt = 0
     et.RegisterModname(modname .. " " .. version)
     local token, tokenError = load_api_key()
     AUTH_TOKEN = token or ""
@@ -217,6 +222,98 @@ function et_InitGame(levelTime, randomSeed, restart)
         log("API authentication configured")
     end
     log("loaded")
+end
+
+-- Connection reminders never read a network pipe on the game thread. Only
+-- completed local files are inspected; curl owns the network timeout.
+local function reminder_cleanup(request)
+    for _, path in ipairs(request.files) do os.remove(path) end
+end
+
+local function reminder_connected(request)
+    return connections[request.client] == request.connection
+        and et.gentity_get(request.client, "pers.connected") == 2
+        and guid_for_client(request.client) == request.guid
+end
+
+local function start_reminder(request)
+    local base = os.tmpname()
+    request.payload, request.body = base, base .. ".body"
+    request.status, request.done = base .. ".status", base .. ".done"
+    request.files = { request.payload, request.body, request.status, request.done }
+    local file = io.open(request.payload, "w")
+    if not file then reminder_cleanup(request); return end
+    local written = file:write(json.encode({ etGuid = request.guid }))
+    local closed = file:close()
+    if not written or not closed then reminder_cleanup(request); return end
+    local curl = "curl -sS --connect-timeout 2 --max-time 5 --max-filesize 4096 -X POST"
+        .. " -H " .. shell_quote("Authorization: Bearer " .. AUTH_TOKEN)
+        .. " -H 'Content-Type: application/json' --data-binary " .. shell_quote("@" .. request.payload)
+        .. " -o " .. shell_quote(request.body) .. " -w '%{http_code}' " .. shell_quote(STATUS_API_URL)
+        .. " > " .. shell_quote(request.status)
+    local paths = {}
+    for _, path in ipairs(request.files) do paths[#paths + 1] = shell_quote(path) end
+    -- Detach all standard streams, including the shell's inherited input.
+    -- Worker cleanup also handles map changes that unload this Lua VM.
+    local command = "( " .. curl .. "; printf '%s' \"$?\" > " .. shell_quote(request.done)
+        .. "; sleep 30; rm -f -- " .. table.concat(paths, " ")
+        .. " ) </dev/null >/dev/null 2>&1 &"
+    local result = os.execute(command)
+    if result ~= true and result ~= 0 then reminder_cleanup(request); return end
+    request.started = os.time()
+    reminderRequests[#reminderRequests + 1] = request
+end
+
+function et_ClientConnect(clientNum, firstTime, isBot)
+    -- A new identity object also rejects replies after same-GUID reconnects.
+    connections[clientNum] = {}
+    reminderQueue[clientNum] = nil
+    if isBot == 1 then connections[clientNum] = nil end
+end
+
+function et_ClientBegin(clientNum)
+    if not connections[clientNum] or AUTH_TOKEN == "" or not json
+        or package.config:sub(1, 1) == "\\"
+        or trap_Cvar_Get("pappa_register_reminders") == "0" then return end
+    local guid = guid_for_client(clientNum)
+    if #guid ~= 32 or guid:find("[^%x]") then return end
+    reminderQueue[clientNum] = { client = clientNum, guid = guid,
+        connection = connections[clientNum], due = os.time() + 10 }
+end
+
+function et_ClientDisconnect(clientNum)
+    connections[clientNum], reminderQueue[clientNum] = nil, nil
+end
+
+function et_RunFrame(levelTime)
+    if levelTime < reminderPollAt then return end
+    reminderPollAt = levelTime + 200
+    local now = os.time()
+    for index = #reminderRequests, 1, -1 do
+        local request = reminderRequests[index]
+        local done = read_file_all(request.done)
+        if done ~= "" or now - request.started > 10 then
+            if done == "0" and read_file_all(request.status) == "200" and reminder_connected(request) then
+                local response = json.decode(read_file_all(request.body))
+                if type(response) == "table" and response.registered == false then
+                    say_player(request.client, "^3Pappaliiga:^7 GUID:iasi ei ole yhdistetty Discord-tiliisi. Kirjaudu Discordilla osoitteessa https://et.aukko.net ja kopioi sivun /register-komento pelikonsoliin.")
+                end
+            end
+            -- Leave running workers' files alone until their timeout/cleanup.
+            if done ~= "" then reminder_cleanup(request) end
+            table.remove(reminderRequests, index)
+        end
+    end
+    for client, request in pairs(reminderQueue) do
+        if now >= request.due then
+            if reminder_connected(request) and #reminderRequests < 4 then
+                start_reminder(request)
+                reminderQueue[client] = nil
+            elseif not reminder_connected(request) then
+                reminderQueue[client] = nil
+            end
+        end
+    end
 end
 
 function et_ClientCommand(clientNum, command)

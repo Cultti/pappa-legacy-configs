@@ -11,6 +11,23 @@ The cup server's `lua_modules` configs load custom modules from
 image deploys them together with the rest of the `luascripts` tree. Their
 regression tests are in the repository's `tests/` directory.
 
+`papparegister.lua` privately reminds unlinked human players to log in with
+Discord at https://et.aukko.net and copy their `/register` command. A check runs
+10 seconds after entering on every connection, including after map changes.
+Set `pappa_register_reminders 0` to disable reminders. Failed checks are silent.
+
+Deploy the Stats `/api/players/registration-status` endpoint first, then this
+module. The existing `lua_modules` paths remain unchanged. Authentication uses
+`STATS_API_TOKEN`. Linux/POSIX, curl, dkjson and writable OS temporary storage
+are required; reminders are disabled on Windows. Network requests run in
+detached background workers (2-second connection / 5-second overall timeout,
+at most four workers). The game polls completion files every 200 ms and never
+waits for the HTTP response. Disconnects and slot reuse discard stale replies;
+workers clean up after map changes. This applies to connection reminders;
+the existing explicit `/register` command still uses its original HTTP path.
+
+Run `lua tests/papparegister_reminder_test.lua` for mocked reminder regressions.
+
 ---
 
 ## Output JSON structure
