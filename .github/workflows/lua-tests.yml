@@ -28,6 +28,9 @@ jobs:
       - name: Test PappaBalance
         run: lua5.1 tests/pappabalance_test.lua
 
+      - name: Test competition config frame rates
+        run: python3 tests/config_rates_test.py
+
       - name: Test PappaReady
         run: lua5.4 tests/pappaready_test.lua
       - name: Test highlight presence and match recording
