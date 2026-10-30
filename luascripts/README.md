@@ -65,8 +65,8 @@ Round outcome and timing data.
 | `round` | number | 1 or 2 |
 | `defenderteam` | number | Defending team (1=Axis, 2=Allies) |
 | `winnerteam` | number | Winning team |
-| `timelimit` | string | Timelimit in `M:SS` format |
-| `nextTimeLimit` | string | Next-round timelimit |
+| `timelimit` | string | Timelimit in `M:SS.fff` format |
+| `nextTimeLimit` | string | Next-round timelimit in `M:SS.fff` format |
 | `round_start` | number | Level time (ms) when round started |
 | `round_end` | number | Level time (ms) when round ended |
 | `round_start_unix` | number | Unix timestamp when round started |
@@ -1543,3 +1543,9 @@ luascripts/
     ├── stats.lua               StoreStats, SaveStats, JSON assembly
     └── gamestate.lua           GS change detection, intermission countdown, reset
 ```
+
+Stopwatch `timelimit` and `nextTimeLimit` now use `M:SS.fff`, rounded to the
+nearest millisecond from the engine's minute-valued cvars. This preserves the
+available cvar precision; it does not imply finer accuracy than the server clock.
+Deploy the matching PappaETStats fractional-time parser before this collector.
+Historical submissions that contain only whole seconds cannot recover fractions.
