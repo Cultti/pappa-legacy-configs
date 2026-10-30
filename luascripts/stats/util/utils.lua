@@ -86,13 +86,11 @@ end
 
 
 function utils.convert_timelimit(timelimit)
-    local msec    = math.floor(tonumber(timelimit) * 60000)
-    local seconds = math.floor(msec / 1000)
-    local mins    = math.floor(seconds / 60)
-    seconds       = seconds - mins * 60
-    local tens    = math.floor(seconds / 10)
-    local ones    = seconds - tens * 10
-    return string.format("%d:%d%d", mins, tens, ones)
+    -- Cvars express minutes; round to milliseconds to avoid float noise.
+    local msec = math.floor(tonumber(timelimit) * 60000 + 0.5)
+    local mins = math.floor(msec / 60000)
+    local seconds = math.floor(msec / 1000) % 60
+    return string.format("%d:%02d.%03d", mins, seconds, msec % 1000)
 end
 
 
