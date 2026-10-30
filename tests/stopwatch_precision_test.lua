@@ -1,0 +1,7 @@
+local utils = dofile("luascripts/stats/util/utils.lua")
+assert(utils.convert_timelimit("6.08335") == "6:05.001")
+assert(utils.convert_timelimit("10") == "10:00.000")
+assert(utils.convert_timelimit("0") == "0:00.000")
+assert(utils.convert_timelimit(tostring(365999 / 60000)) == "6:05.999")
+assert(utils.convert_timelimit(tostring(366000 / 60000)) == "6:06.000")
+print("Stopwatch millisecond formatting passed")

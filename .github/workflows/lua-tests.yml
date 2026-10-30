@@ -7,6 +7,7 @@ on:
       - main
     paths:
       - 'luascripts/pappaliiga/**'
+      - 'luascripts/stats/util/utils.lua'
       - 'tests/**'
       - '.github/workflows/lua-tests.yml'
 
@@ -37,3 +38,6 @@ jobs:
         run: |
           lua5.4 tests/pappahighlights_test.lua
           lua5.4 tests/pappahighlights_recording_test.lua
+
+      - name: Test stopwatch millisecond precision
+        run: lua5.4 tests/stopwatch_precision_test.lua
