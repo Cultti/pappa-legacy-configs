@@ -12,6 +12,7 @@ gentity_get=function(slot,field)if field=='sess.sessionTeam' then return slot+1 
 assert(loadfile('luascripts/pappaliiga/pappabroadcast.lua'))()
 et_InitGame(0,123,0);et_ClientConnect(0,1,1);et_RunFrame(100)
 assert(output.session and output.timeMs==100)
+assert(output.humanPlayers==1 and output.activePlayers==2,'bot callback excluded from human count')
 assert(et_Damage(1,0,30,0,1)==0,'must not intercept damage')
 assert(et_Obituary(1,0,1)==0,'must not intercept deaths')
 et_RunFrame(400)
@@ -45,5 +46,16 @@ assert(next_match~=stopwatch)
 vars.gamestate='2';et_RunFrame(1000);vars.gamestate='1';et_RunFrame(1300)
 assert(output.matchId==next_match,'cancelled countdown does not split the match')
 vars.mapname='radar';et_RunFrame(1600);assert(output.matchId~=next_match,'new map gets a new match')
+vars.sv_maxclients='6';vars.sv_etltv_password='test-relay-password'
+et.gentity_get=function(slot,field)
+    if field=='sess.sessionTeam' then return slot==3 and 3 or (slot%2+1) end
+    if field=='r.svFlags' then return slot==4 and 8 or 0 end
+    return fields[field]
+end
+et.trap_GetUserinfo=function(slot)return slot==5 and 'TV' or ''end
+et.Info_ValueForKey=function(text,key)if text=='TV' then return key=='protocol' and '284' or (key=='masterpassword' and 'test-relay-password' or '') end return '' end
+assert(loadfile('luascripts/pappaliiga/pappabroadcast.lua'))();et_InitGame(0,125,1);et_RunFrame(100)
+assert(output.humanPlayers==3 and output.activePlayers==5,'spectators, bot flags after reload, and TV excluded')
+assert(not json.encode(output):find('test%-relay%-password'),'credentials never exported')
 os.getenv=realgetenv
 print('pappabroadcast: all checks passed')

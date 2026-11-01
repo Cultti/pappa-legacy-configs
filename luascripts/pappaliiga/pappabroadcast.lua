@@ -1,7 +1,7 @@
 -- Opt-in, bounded live telemetry. Keep local transport on tmpfs; no HTTP in game frames.
 local ok, json = pcall(require, 'dkjson')
 local enabled, next_write, now, sequence = false, 0, 0, 0
-local session, events, generations = '', {}, {}
+local session, events, generations, bots = '', {}, {}, {}
 local last_cost,max_cost,write_failures=0,0,0
 local path = os.getenv('BROADCAST_SOURCE_FILE') or '/runtime/source.json'
 local max_events = 256
@@ -45,6 +45,22 @@ local function player(slot)
         health=get(slot, 'health') or 0, flags=get(slot, 'ps.pm_flags') or 0,
         position=get(slot, 'r.currentOrigin'), angles=get(slot, 'ps.viewangles')}
 end
+local function population()
+    local humans,total=0,0
+    for slot=0,math.min(63,(tonumber(et.trap_Cvar_Get('sv_maxclients')) or 64)-1) do
+        local team=get(slot,'sess.sessionTeam')
+        if get(slot,'pers.connected')==2 and (team==1 or team==2) then
+            total=total+1
+            local flags=tonumber(get(slot,'r.svFlags')) or 0
+            local info=et.trap_GetUserinfo and et.trap_GetUserinfo(slot) or ''
+            local password=et.trap_Cvar_Get('sv_etltv_password') or ''
+            local tv=et.Info_ValueForKey and tonumber(et.Info_ValueForKey(info,'protocol'))==284
+                and password~='' and et.Info_ValueForKey(info,'masterpassword')==password
+            if not bots[slot] and (flags & 8)==0 and not tv then humans=humans+1 end
+        end
+    end
+    return humans,total
+end
 local function record(kind, actor, victim, value, mod)
     if not enabled then return end
     sequence = sequence + 1
@@ -64,7 +80,7 @@ function et_InitGame(levelTime, seed, restart)
     end
     et.RegisterModname('PappaBroadcast 0.1.0')
     if et.FindSelf then et.trap_Cvar_Set('pappa_broadcast_vm', tostring(et.FindSelf())) end
-    now, next_write, sequence, events, generations = levelTime, 0, 0, {}, {}
+    now, next_write, sequence, events, generations, bots = levelTime, 0, 0, {}, {}, {}
     last_cost,max_cost,write_failures=0,0,0
     local server = (os.getenv('BROADCAST_SERVER_ID') or 'test'):gsub('[^%w_-]', ''):sub(1,32)
     session = server .. '-' .. tostring(os.time()) .. '-' .. tostring(et.trap_Milliseconds()) .. '-' .. tostring(seed)
@@ -91,6 +107,7 @@ function et_IPCReceive(vmnumber,message)
 end
 function et_ClientConnect(slot, firstTime, isBot)
     generations[slot] = (generations[slot] or 0) + 1
+    bots[slot] = isBot==1
 end
 function et_Obituary(victim, attacker, mod) record('kill', attacker, victim, 1, mod); return 0 end
 function et_Damage(victim, attacker, damage, flags, mod)
@@ -107,8 +124,10 @@ function et_RunFrame(levelTime)
         local p = player(slot); if p then roster[#roster+1] = p end
     end
     local match_id,match_complete=match_state()
+    local human_players,total_players=population()
     local body = json.encode({schema=1,session=session,map=et.trap_Cvar_Get('mapname'),timeMs=now,
         matchId=match_id,matchComplete=match_complete,
+        humanPlayers=human_players,activePlayers=total_players,
         gamestate=tonumber(et.trap_Cvar_Get('gamestate')),round=tonumber(et.trap_Cvar_Get('g_currentRound')),
         paused=et.CS_SERVERTOGGLES and (((tonumber(et.trap_GetConfigstring(et.CS_SERVERTOGGLES)) or 0) & 16)~=0) or false,
         sequence=sequence,events=events,players=roster,lastFlushMs=last_cost,maxFlushMs=max_cost,writeFailures=write_failures})
