@@ -19,6 +19,20 @@ local _buffer                = {}  -- array of event tables
 local _enabled               = true
 local _round_start_unix_ms   = 0   -- os.time() * 1000 recorded at round_start
 local _round_start_leveltime = 0   -- et.trap_Milliseconds() recorded at round_start
+local _broadcast_enabled = os.getenv('BROADCAST_ENABLED') == 'true'
+local _broadcast_json
+local function broadcast_objective(label, fields)
+    if not _broadcast_enabled or not label:match('^obj_') or not fields or not fields.player
+        or not et.FindMod or not et.IPCSend then return end
+    local vm=tonumber(et.trap_Cvar_Get('pappa_broadcast_vm'))
+    if not vm or vm<0 or vm>=64 then return end
+    local name=et.FindMod(vm)
+    if not name or not name:match('^PappaBroadcast ') then return end
+    if not _broadcast_json then local success,value=pcall(require,'dkjson');if not success then return end;_broadcast_json=value end
+    -- Send only existing player-attributed objective evidence. The broadcast VM stamps
+    -- its snapshot clock; Stats' trap_Milliseconds timeline is deliberately not reused.
+    et.IPCSend(vm,_broadcast_json.encode({kind='broadcast_objective',label=label,guid=fields.player}))
+end
 
 
 function gamelog.init(enabled)
@@ -47,6 +61,7 @@ function gamelog.record(label, group, fields, leveltime)
     end
 
     table.insert(_buffer, ev)
+    broadcast_objective(label, fields)
 end
 
 

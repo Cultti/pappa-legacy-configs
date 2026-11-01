@@ -1,0 +1,8 @@
+// Opt-in source module list. Set g_luaModuleList to this deployed file.
+luascripts/stats.lua
+luascripts/combinedfixes.lua
+luascripts/pappaliiga/pappabalance.lua
+luascripts/pappaliiga/papparegister.lua
+luascripts/pappaliiga/pappaready.lua
+luascripts/pappaliiga/pappahighlights.lua
+luascripts/pappaliiga/pappabroadcast.lua
