@@ -28,6 +28,30 @@ the existing explicit `/register` command still uses its original HTTP path.
 
 Run `lua tests/papparegister_reminder_test.lua` for mocked reminder regressions.
 
+### Experimental automatic broadcast
+
+`pappaliiga/pappabroadcast.lua` is an opt-in live telemetry exporter. It is inactive
+unless `BROADCAST_ENABLED=true` is set in the server environment. Load it alongside
+the existing stats module through `lua_modules`; production configs are not changed
+automatically. `dkjson`, writable tmpfs and the companion broadcast service are
+required. `BROADCAST_SOURCE_FILE` defaults to `/runtime/source.json`.
+It publishes a bounded 256-event window and roster every 250 ms, using the engine's
+frame/snapshot clock, not Stats' `trap_Milliseconds` timeline. No HTTP runs in frames.
+Stats forwards existing attributed objective events through local Lua IPC only
+when this opt-in is enabled. GUIDs are resolved locally and are not exported.
+
+`pappaliiga/pappabroadcast-tv.lua` is for a private ETLTV relay only. It applies
+session-scoped, expiring camera decisions to the single viewer named
+`BROADCAST_VIEWER_NAME` (default `BroadcastCamera`) and reports the followed slot.
+Keep the relay on a private network; its name selector is not authentication.
+The game source and relay share an opaque session ID through delayed serverinfo.
+Transport details, readiness checks and release order are documented in the sibling
+`ETLegacyAutoBroadcast` project. Deploy compatible Lua before enabling broadcast
+workers; disabling `BROADCAST_ENABLED` restores the existing collector behavior.
+
+Run `lua tests/pappabroadcast_test.lua`, `lua tests/pappabroadcast_tv_test.lua`,
+and `lua tests/broadcast_objective_test.lua` with dkjson available.
+
 ---
 
 ## Output JSON structure
