@@ -6,3 +6,4 @@ luascripts/pappaliiga/papparegister.lua
 luascripts/pappaliiga/pappaready.lua
 luascripts/pappaliiga/pappahighlights.lua
 luascripts/pappaliiga/pappabroadcast.lua
+luascripts/pappaliiga/pappabroadcast-chat.lua

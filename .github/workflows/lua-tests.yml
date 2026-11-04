@@ -45,6 +45,7 @@ jobs:
 
       - name: Test opt-in broadcast telemetry and relay control
         run: |
+          lua5.4 tests/pappabroadcast_chat_test.lua
           lua5.4 tests/pappabroadcast_test.lua
           lua5.4 tests/pappabroadcast_tv_test.lua
           lua5.4 tests/broadcast_objective_test.lua

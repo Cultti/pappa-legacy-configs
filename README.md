@@ -2,6 +2,7 @@
 
 This repository is the source of truth for deployed server configs and Lua.
 See `luascripts/README.md` for module behavior and integration requirements.
+See [stream chat delivery](STREAM_CHAT.md) for opt-in Twitch/YouTube game chat.
 
 Competition defaults `legacy1`, `legacy3`, `legacy5` and `legacy6` run at
 **40 Hz**. Explicit 50 Hz alternatives are `legacy1_svfps50`,
