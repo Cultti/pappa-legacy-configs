@@ -57,5 +57,26 @@ et.Info_ValueForKey=function(text,key)if text=='TV' then return key=='protocol' 
 assert(loadfile('luascripts/pappaliiga/pappabroadcast.lua'))();et_InitGame(0,125,1);et_RunFrame(100)
 assert(output.humanPlayers==3 and output.activePlayers==5,'spectators, bot flags after reload, and TV excluded')
 assert(not json.encode(output):find('test%-relay%-password'),'credentials never exported')
+local camera_guid=string.rep('A',32)
+local duplicate=false
+os.getenv=function(k)
+    if k=='BROADCAST_ENABLED' then return 'true' end
+    if k=='BROADCAST_CAMERA_GUID' then return camera_guid end
+    if k=='BROADCAST_SERVER_ID' then return 'daily' end
+end
+et.gentity_get=function(slot,field)
+    if field=='sess.sessionTeam' then return (slot==3 or slot==4) and 3 or 1 end
+    if field=='sess.shoutcaster' then return 1 end
+    if field=='sess.spectatorState' then return 2 end
+    if field=='sess.spectatorClient' then return 0 end
+    return fields[field]
+end
+et.trap_GetUserinfo=function(slot) return (slot==3 or (duplicate and slot==4)) and camera_guid:lower() or '' end
+et.Info_ValueForKey=function(text,key) return key=='cl_guid' and text or '' end
+assert(loadfile('luascripts/pappaliiga/pappabroadcast.lua'))();et_InitGame(0,126,1);et_RunFrame(100)
+assert(output.serverId=='daily' and output.directCamera.slot==3 and output.directCamera.shoutcaster==true and output.directProbe==nil)
+assert(not json.encode(output):upper():find(camera_guid,1,true),'camera identity must not be exported')
+duplicate=true;et_RunFrame(400)
+assert(output.directCamera.ambiguous==true and output.directCamera.slot==nil,'reject duplicate camera identity')
 os.getenv=realgetenv
 print('pappabroadcast: all checks passed')

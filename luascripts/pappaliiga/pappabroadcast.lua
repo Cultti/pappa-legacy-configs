@@ -5,6 +5,10 @@ local session, events, generations, bots = '', {}, {}, {}
 local last_cost,max_cost,write_failures=0,0,0
 local path = os.getenv('BROADCAST_SOURCE_FILE') or '/runtime/source.json'
 local max_events = 256
+local direct_probe = os.getenv('BROADCAST_DIRECT_PROBE') == 'true' and os.getenv('BROADCAST_TEST_MODE') == 'true'
+local camera_guid = (os.getenv('BROADCAST_CAMERA_GUID') or ''):upper()
+if #camera_guid ~= 32 or not camera_guid:match('^%x+$') then camera_guid = nil end
+local server_id = (os.getenv('BROADCAST_SERVER_ID') or 'test'):gsub('[^%w_-]', ''):sub(1,32)
 -- Non-archived engine cvars survive Lua reloads and stopwatch half changes.
 -- A new server process has no identity; a new map or completed match gets a new ID.
 local function match_state()
@@ -82,8 +86,7 @@ function et_InitGame(levelTime, seed, restart)
     if et.FindSelf then et.trap_Cvar_Set('pappa_broadcast_vm', tostring(et.FindSelf())) end
     now, next_write, sequence, events, generations, bots = levelTime, 0, 0, {}, {}, {}
     last_cost,max_cost,write_failures=0,0,0
-    local server = (os.getenv('BROADCAST_SERVER_ID') or 'test'):gsub('[^%w_-]', ''):sub(1,32)
-    session = server .. '-' .. tostring(os.time()) .. '-' .. tostring(et.trap_Milliseconds()) .. '-' .. tostring(seed)
+    session = server_id .. '-' .. tostring(os.time()) .. '-' .. tostring(et.trap_Milliseconds()) .. '-' .. tostring(seed)
     -- Publish only an opaque session ID; the delayed relay receives it on the same timeline.
     et.trap_SendConsoleCommand(et.EXEC_APPEND, 'sets pappa_broadcast_session "' .. session .. '"\n')
 end
@@ -120,17 +123,31 @@ function et_RunFrame(levelTime)
     next_write = now + 250
     local started = et.trap_Milliseconds()
     local roster = {}
+    local camera, probe
     for slot=0,math.min(63,(tonumber(et.trap_Cvar_Get('sv_maxclients')) or 64)-1) do
         local p = player(slot); if p then roster[#roster+1] = p end
+        if (camera_guid or direct_probe) and get(slot, 'pers.connected') == 2 and get(slot, 'sess.sessionTeam') == 3 then
+            local function observation()
+                return {slot=slot, generation=generations[slot] or 1, state=get(slot, 'sess.spectatorState'),
+                    followedSlot=get(slot, 'sess.spectatorClient'), shoutcaster=get(slot, 'sess.shoutcaster') == 1}
+            end
+            if direct_probe and get(slot, 'pers.netname') == 'DirectCameraProbe' then
+                probe = probe and {ambiguous=true} or observation()
+            end
+            if camera_guid and et.trap_GetUserinfo and et.Info_ValueForKey then
+                local guid = (et.Info_ValueForKey(et.trap_GetUserinfo(slot) or '', 'cl_guid') or ''):upper()
+                if guid == camera_guid then camera = camera and {ambiguous=true} or observation() end
+            end
+        end
     end
     local match_id,match_complete=match_state()
     local human_players,total_players=population()
-    local body = json.encode({schema=1,session=session,map=et.trap_Cvar_Get('mapname'),timeMs=now,
+    local body = json.encode({schema=1,serverId=server_id,session=session,map=et.trap_Cvar_Get('mapname'),timeMs=now,
         matchId=match_id,matchComplete=match_complete,
         humanPlayers=human_players,activePlayers=total_players,
         gamestate=tonumber(et.trap_Cvar_Get('gamestate')),round=tonumber(et.trap_Cvar_Get('g_currentRound')),
         paused=et.CS_SERVERTOGGLES and (((tonumber(et.trap_GetConfigstring(et.CS_SERVERTOGGLES)) or 0) & 16)~=0) or false,
-        sequence=sequence,events=events,players=roster,lastFlushMs=last_cost,maxFlushMs=max_cost,writeFailures=write_failures})
+        sequence=sequence,events=events,players=roster,directProbe=probe,directCamera=camera,lastFlushMs=last_cost,maxFlushMs=max_cost,writeFailures=write_failures})
     if #body > 262144 then return end
     local f = io.open(path .. '.tmp', 'w')
     if f then
