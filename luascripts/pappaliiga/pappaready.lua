@@ -5,7 +5,7 @@
 -- Server identity: pappa_stats_server_id (defaults to sv_hostname).
 
 local modname = "PappaReady"
-local version = "1.0"
+local version = "1.1"
 local READY_UP_URL = "https://et.aukko.net/api/ready-ups"
 local EVENT_SEQUENCE_CVAR = "pappa_ready_event_sequence"
 local json_ok, json = pcall(require, "dkjson")
@@ -17,6 +17,40 @@ local currentGameState = et.GS_INITIALIZE
 local readyUps = {}
 local pendingReadyUp = nil
 local readySequence = 0
+local holdout
+local messages = {
+    "ON LAHOMUNA!",
+    "ON MÄTÄ PERUNA!",
+    "ON HAPAN KURKKU!",
+    "ON LÖYSÄ MAKARONI!",
+    "ON MÄRKÄ SUKKA!",
+    "ON HAISEVA PIERU!",
+    "ON PIERUPERSE!",
+    "ON LÖLLÖMAHA!",
+    "ON NÖSSÖ!",
+    "ON MAMMANPOIKA!",
+    "ON TÖLLÖTIN!",
+    "ON PÖLLÖPÄÄ!",
+    "ON HÖLMÖLÄINEN!",
+    "ON VELLIPÖKSY!",
+    "ON PUPUPÖKSY!",
+    "ON ITKUPILLI!",
+    "ON NENÄNKAIVAJA!",
+    "ON RÄKÄNOKKA!",
+    "ON KAKKAHOUSU!",
+    "ON PÖKSYNPÄÄ!",
+    "ON MÄTÄ TOMAATTI!",
+    "ON KUIVUNUT NAKKI!",
+    "ON LÖYSÄ NAKKI!",
+    "ON PULLEA PULLA!",
+    "ON KÄVELEVÄ PERUNA!",
+    "JÄI NUOLEMAAN NÄPPEJÄÄN!",
+    "JÄI KUIN NALLI KALLIOLLE!",
+    "SAA JÄÄNNÖKSET!",
+    "JOUTUU SIIVOAMAAN!",
+    "SAMMUTTAA VALOT!",
+    "PESEE VESSAT!",
+}
 
 local function log(message)
     et.G_Print(string.format("^2[%s]^7 %s\n", modname, tostring(message)))
@@ -59,8 +93,34 @@ local function is_ready(entry)
 end
 
 local function clear_ready_ups()
+    holdout = nil
     readyUps = {}
     pendingReadyUp = nil
+end
+
+-- Measure the continuous stretch with exactly one unready player.
+local function observe_holdout()
+    local candidate, readyCount = nil, 0
+    for client = 0, maxClients - 1 do
+        if tonumber(et.gentity_get(client, "pers.connected")) == 2 then
+            local team = tonumber(et.gentity_get(client, "sess.sessionTeam"))
+            if team == 1 or team == 2 then
+                if tonumber(et.gentity_get(client, "pers.ready")) == 1 then
+                    readyCount = readyCount + 1
+                elseif candidate ~= nil then
+                    holdout = nil
+                    return
+                else
+                    candidate = client
+                end
+            end
+        end
+    end
+    if candidate == nil or readyCount == 0 then holdout = nil; return end
+    local guid = guid_for_client(candidate)
+    if not holdout or holdout.client ~= candidate or holdout.guid ~= guid then
+        holdout = { client = candidate, guid = guid, since = et.trap_Milliseconds() }
+    end
 end
 
 local function process_ready_ups()
@@ -110,6 +170,12 @@ local function send_last_ready_up()
         if not last or entry.sequence > last.sequence then last = entry end
     end
     if not last then return end
+    if last.waitMs ~= nil then
+        local name = tostring(et.gentity_get(last.client, "pers.netname") or "")
+            :gsub('[%c"\\]', "")
+        et.trap_SendServerCommand(-1, 'chat "' .. name .. " ^1"
+            .. messages[math.random(#messages)] .. '"')
+    end
     if not json or authToken == "" then
         log("Last ready-up could not be sent: JSON or API authentication unavailable")
         return
@@ -124,6 +190,7 @@ local function send_last_ready_up()
         eventId = string.format("ready-%08x-%d-%d-%d", hash, os.time(), et.trap_Milliseconds(), sequence),
         playerGuid = last.guid,
         readyAtUnix = last.atUnix,
+        waitMs = last.waitMs,
         countdownAtUnix = os.time(),
         serverId = id,
         mapName = tostring(et.trap_Cvar_Get("mapname") or ""),
@@ -157,6 +224,7 @@ function et_RunFrame(gameFrameLevelTime)
     elseif state ~= et.GS_WARMUP and state ~= et.GS_WARMUP_COUNTDOWN then
         clear_ready_ups()
     end
+    if state == et.GS_WARMUP then observe_holdout() end
     currentGameState = state
 end
 
@@ -171,12 +239,18 @@ function et_ClientCommand(client, command)
     if tonumber(et.gentity_get(client, "pers.connected")) ~= 2
         or (team ~= 1 and team ~= 2)
         or tonumber(et.gentity_get(client, "pers.ready")) ~= 0 then return 0 end
+    observe_holdout()
+    local waitMs
+    if holdout and holdout.client == client and holdout.guid == guid then
+        waitMs = math.max(0, et.trap_Milliseconds() - holdout.since)
+    end
     readySequence = readySequence + 1
-    pendingReadyUp = { client = client, guid = guid, sequence = readySequence, atUnix = os.time() }
+    pendingReadyUp = { client = client, guid = guid, sequence = readySequence, atUnix = os.time(), waitMs = waitMs }
     return 0 -- Let ET and other Lua modules handle the command normally.
 end
 
 function et_ClientDisconnect(client)
+    if holdout and holdout.client == client then holdout = nil end
     for guid, entry in pairs(readyUps) do
         if entry.client == client then readyUps[guid] = nil end
     end

@@ -3,6 +3,7 @@
 local load_ready = assert(loadfile("luascripts/pappaliiga/pappaready.lua"))
 local cvars, clients, posts, commands, removed, files, payload, key, now
 local launchResult, writeFailure, closeFailure, tempSequence
+local clock, chat
 local count = 0
 local encoder = { encode = function(value) payload = value; return "json-payload" end }
 
@@ -14,6 +15,7 @@ local function setup(overrides)
     for name, value in pairs(overrides or {}) do cvars[name] = value end
     clients, posts, commands, removed, files = {}, {}, {}, {}, {}
     payload, key, now, tempSequence = nil, "test-key\n", 1791048934, 0
+    clock, chat = 100, {}
     launchResult, writeFailure, closeFailure = true, false, false
     os.getenv = function(name)
         if name == "STATS_API_TOKEN" then return key end
@@ -26,7 +28,10 @@ local function setup(overrides)
         trap_Cvar_Set = function(name, value) cvars[name] = value end,
         trap_GetUserinfo = function(client) return clients[client] and clients[client].guid or "" end,
         Info_ValueForKey = function(info) return info end,
-        trap_Milliseconds = function() return 100 end,
+        trap_Milliseconds = function() return clock end,
+        trap_SendServerCommand = function(slot, message)
+            assert(slot == -1); chat[#chat + 1] = message
+        end,
         gentity_get = function(client, field) return clients[client] and clients[client][field] or 0 end,
         RegisterModname = function() end, G_Print = function() end
     }
@@ -194,6 +199,24 @@ test("failed file writes, closes and shell launches clean up temporary files", f
         assert(#removed == 1)
         if failure ~= "launch" then assert(#commands == 0) end
     end
+end)
+
+test("holdout clock resets when another player unreadies and excludes countdown", function()
+    setup()
+    player(0, "a"); player(1, "b", 2)
+    clients[1]["pers.netname"] = '^2Player"'
+    ready(0); et_RunFrame(100)
+    clock = 500
+    et_ClientCommand(0, "unready"); clients[0]["pers.ready"] = 0
+    et_RunFrame(500)
+    clock = 600
+    ready(0); et_RunFrame(600)
+    clock = 1950
+    ready(1)
+    clock = 3000
+    countdown(); et_RunFrame(3001)
+    assert(posts[1].waitMs == 1350)
+    assert(#chat == 1 and chat[1]:find('chat "^2Player ^1', 1, true) == 1)
 end)
 
 print(string.format("%d PappaReady tests passed", count))
