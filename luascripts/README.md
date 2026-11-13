@@ -1573,3 +1573,5 @@ nearest millisecond from the engine's minute-valued cvars. This preserves the
 available cvar precision; it does not imply finer accuracy than the server clock.
 Deploy the matching PappaETStats fractional-time parser before this collector.
 Historical submissions that contain only whole seconds cannot recover fractions.
+
+PappaReady sends the continuous time spent as the only unready playing client as optional waitMs in the existing ready-up event, and posts one randomized Finnish chat message when warmup enters countdown. Deploy the Stats API migration before the settings update. The duration is stored privately.
