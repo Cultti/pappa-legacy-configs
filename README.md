@@ -37,3 +37,10 @@ Run all `tests/*_test.lua` with Lua 5.4 and dkjson before deployment. Keep relay
 access private, use an immutable reviewed artifact, and restart an opted-in game
 source only after its active match/recorder work has drained. The pilot camera,
 director and lifecycle service live in private `Cultti/ETLegacyAutoBroadcast`.
+
+## Daily Christmas maps
+
+Competition configs support `northpole`, `UJE_goldrush`, `UJE_oasis_xmas`, `fueldump_christmas`, `UJE_temple_xmas`, `UJE_baserace_christmas`.
+Map-authored time limits and default mover scale are retained. The original
+`UJE_xmas_maps.pk3` supplies Goldrush, Oasis and Temple together. Package hashes
+and deployment evidence live in the provisioning Christmas release set.
