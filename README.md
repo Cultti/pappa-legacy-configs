@@ -44,3 +44,7 @@ Competition configs support `northpole`, `UJE_goldrush`, `UJE_oasis_xmas`, `fuel
 Map-authored time limits and default mover scale are retained. The original
 `UJE_xmas_maps.pk3` supplies Goldrush, Oasis and Temple together. Package hashes
 and deployment evidence live in the provisioning Christmas release set.
+
+Daily also includes winter Fuel Dump TE2 v2 (`sw_fueldump_te2_v2.pk3`).
+Its map/vote name is `sw_fueldump_te2`; retain its authored 15-minute limit,
+20-second Allied and 30-second Axis respawns, and default mover scale.
